@@ -1,4 +1,4 @@
-#올라마 실행 코드
+#올라마 실행
 ollama run gemma3:4b
 
 # 1. 가상환경 활성화
@@ -7,7 +7,4 @@ source venv/bin/activate
 # 프롬프트가 (venv)로 시작해야 함!
 # (venv) hazyala@hazyalaubuntu:~/Project/MACH_SEVEN$
 
-# 2. 그 다음 실행
-streamlit run main.py
-python3 vision_display.py
 
