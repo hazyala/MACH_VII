@@ -20,14 +20,25 @@ def get_agent():
     안정성이 검증된 ZERO_SHOT_REACT_DESCRIPTION 방식으로 에이전트를 생성합니다.
     """
     try:
-        logger.info("안정화 버전의 에이전트 초기화를 시작합니다.")
+        # logger.info("안정화 버전의 에이전트 초기화를 시작합니다.")
         
-        # 1. 언어 모델(LLM) 설정
-        # 로컬 Ollama 서버와 통신하는 젬마 모델 객체를 생성합니다.
-        llm = ChatOllama(
-            model="gemma3:4b",
-            base_url="http://localhost:11434",
-            temperature=0.0
+        # # 1. 언어 모델(LLM) 설정
+        # # 로컬 Ollama 서버와 통신하는 젬마 모델 객체를 생성합니다.
+        # llm = ChatOllama(
+        #     model="gemma3:4b",
+        #     base_url="http://localhost:11434",
+        #     temperature=0.0
+        # )
+
+        response = requests.post(
+            "http://ollama.aikopo.net/api/generate",
+            json={
+                "model": "gemma3:27b", # 27b
+                "prompt": query,
+                "images": [image_base64],
+                "stream": False
+            },
+            timeout=90
         )
         
         # 2. 시스템 지침 설정
