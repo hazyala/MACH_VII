@@ -1,3 +1,13 @@
+ # def _init_agent(self):
+    #     """에이전트에게 정체성과 엄격한 행동 지침을 부여합니다."""
+    #     # 로컬 Ollama 서버의 Gemma3 모델을 연결합니다.
+    #     llm = ChatOllama(
+    #         model="gemma3:4b", 
+    #         base_url="http://localhost:11434", 
+    #         temperature=0.0
+    #     )
+
+
 #올라마 실행
 ollama run gemma3:4b
 
@@ -9,3 +19,12 @@ source venv/bin/activate
 
 # 2. 코드 실행
 streamlit run main.py
+
+# 3. 카메라 자원
+pkill -9 python
+
+# 카메라를 사용 중인 프로세스의 ID(PID)를 찾습니다.
+fuser /dev/video*
+
+# 만약 결과가 나온다면, 해당 프로세스를 강제로 종료합니다 (예: PID가 1234인 경우)
+kill -9 [찾은PID]

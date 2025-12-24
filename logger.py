@@ -1,9 +1,3 @@
-# logger.py
-# ================================================================================
-# MACH VII - 로깅 시스템
-# 터미널(컬러 출력)과 파일(텍스트 저장)에 동시에 로그를 남기는 모듈입니다.
-# ================================================================================
-
 import logging
 import sys
 import os
@@ -11,117 +5,49 @@ from datetime import datetime
 
 class ColoredFormatter(logging.Formatter):
     """
-    로그 메시지에 이모지와 색상을 입혀서 보기 좋게 만들어주는 포매터 클래스입니다.
-    기본적인 logging.Formatter 기능을 상속받아 확장하였습니다.
+    로그 메시지에 색상과 이모지를 추가하여 가독성을 높이는 클래스입니다.
     """
-    
-    # 터미널에서 글자 색상을 변경하기 위한 ANSI 컬러 코드입니다.
-    # \033[92m과 같은 코드가 터미널에 전달되면 그 뒤의 글자 색상이 바뀝니다.
     COLORS = {
-        'DEBUG': '\033[36m',      # 청록색 (상세 분석용)
-        'INFO': '\033[92m',       # 초록색 (일반 정보)
-        'WARNING': '\033[93m',    # 노란색 (주의 필요)
-        'ERROR': '\033[91m',      # 빨간색 (오류 발생)
-        'CRITICAL': '\033[95m'    # 보라색 (심각한 상황)
+        'DEBUG': '\033[36m', 'INFO': '\033[92m', 'WARNING': '\033[93m',
+        'ERROR': '\033[91m', 'CRITICAL': '\033[95m'
     }
-    # 색상 설정을 초기화하고 기본 색상으로 되돌리는 코드입니다.
     RESET = '\033[0m'
-    
-    # 각 모듈(기능)의 성격에 맞는 이모지 매핑입니다.
-    # 마마의 특별 교지에 따라 이 로깅 시스템 내에서는 이모지 사용이 허용됩니다.
     EMOJIS = {
-        'VISION': '👁️ ',   # 시각 지능 관련
-        'AGENT': '🧠',      # 인공지능 추론 관련
-        'MAIN': '📱',       # 메인 UI 실행 관련
-        'ROBOT': '🤖',      # 로봇 하드웨어 제어 관련
-        'EMOTION': '😊',    # 감정 상태 변경 관련
-        'ERROR': '❌',      # 오류 로그
-        'SUCCESS': '✅',    # 작업 성공 로그
-        'DEBUG': '🔍',      # 디버깅 정보
-        'STREAM': '📹',     # 영상 스트리밍 관련
-        'LLM': '💬',        # 언어 모델 대화 관련
-        'TOOLS': '🛠️',      # 에이전트 도구 실행 관련
-        'CONFIG': '⚙️'      # 설정 정보 관련
+        'VISION': '👁️ ', 'AGENT': '🧠', 'MAIN': '📱', 
+        'ROBOT': '🤖', 'EMOTION': '😊', 'TOOLS': '🛠️', 'ENGINE': '⚙️'
     }
     
     def format(self, record):
-        """
-        실제 로그 메시지가 출력될 때의 모양(포맷)을 결정하는 함수입니다.
-        """
-        # 로그를 남긴 모듈의 이름을 대문자로 가져옵니다 (예: main -> MAIN).
         module_name = record.name.upper()
-        
-        # 미리 정의한 EMOJIS 딕셔너리에서 모듈명에 맞는 이모지를 찾습니다.
-        # 만약 목록에 없다면 📌 모양을 기본값으로 사용합니다.
         emoji = self.EMOJIS.get(module_name, '📌')
-        
-        # 로그 레벨(INFO, ERROR 등)에 맞는 색상을 가져옵니다.
-        level_name = record.levelname
-        log_color = self.COLORS.get(level_name, '')
-        
-        # 현재 시간을 "년-월-일 시:분:초" 형식의 문자열로 만듭니다.
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 최종적으로 터미널에 보여줄 로그 한 줄을 조립합니다.
-        # 구성: [색상][시간] [이모지 모듈명] 메시지 [색상해제]
-        formatted_message = (
-            f"{log_color}[{current_time}] [{emoji} {module_name}] "
-            f"{record.getMessage()}{self.RESET}"
-        )
-        return formatted_message
-
+        log_color = self.COLORS.get(record.levelname, '')
+        current_time = datetime.now().strftime("%H:%M:%S")
+        return f"{log_color}[{current_time}] [{emoji} {module_name}] {record.getMessage()}{self.RESET}"
 
 def get_logger(name):
     """
-    프로그램의 특정 부분(모듈)에서 사용할 로거 객체를 생성하여 반환합니다.
-    이 로거는 터미널 출력과 파일 저장을 동시에 수행합니다.
+    터미널 출력과 날짜별 파일 저장을 동시에 수행하는 로거를 생성합니다.
     """
-    # name 이름으로 로거 인스턴스를 가져옵니다.
-    new_logger = logging.getLogger(name)
-    # 로그의 수집 레벨을 DEBUG(모든 로그 수집)로 설정합니다.
-    new_logger.setLevel(logging.DEBUG)
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
     
-    # 기존에 등록된 핸들러가 있다면 제거하여 로그가 중복으로 찍히는 것을 방지합니다.
-    if new_logger.handlers:
-        new_logger.handlers.clear()
+    if logger.handlers:
+        logger.handlers.clear()
     
-    # ===== 터미널 출력 핸들러 설정 =====
-    # sys.stdout(표준 출력)을 통해 터미널 화면에 로그를 보냅니다.
+    # 1. 터미널 출력 설정
     stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setLevel(logging.DEBUG)
-    # 위에서 정의한 컬러 포매터를 적용합니다.
     stream_handler.setFormatter(ColoredFormatter())
+    logger.addHandler(stream_handler)
     
-    # ===== 파일 저장 핸들러 설정 =====
-    # 로그를 저장할 'logs' 폴더가 없다면 자동으로 생성합니다.
-    log_directory = "logs"
-    os.makedirs(log_directory, exist_ok=True)
+    # 2. 파일 저장 설정 (날짜별 하나의 파일)
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    date_str = datetime.now().strftime("%Y%m%d")
+    file_path = os.path.join(log_dir, f"maengchil_{date_str}.log")
     
-    # 파일명에 현재 날짜와 시간을 포함하여 중복되지 않게 만듭니다 (예: maengchil_20251224.log).
-    file_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file_path = os.path.join(log_directory, f"maengchil_{file_timestamp}.log")
+    file_handler = logging.FileHandler(file_path, encoding='utf-8')
+    file_fmt = logging.Formatter('[%(asctime)s] [%(name)s] %(message)s', '%H:%M:%S')
+    file_handler.setFormatter(file_fmt)
+    logger.addHandler(file_handler)
     
-    # 파일에 로그를 기록하는 핸들러를 생성합니다. 한글 깨짐 방지를 위해 utf-8을 사용합니다.
-    file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
-    file_handler.setLevel(logging.DEBUG)
-    # 파일에는 컬러 코드가 들어가면 보기 힘들므로 순수 텍스트 형식으로 저장합니다.
-    file_log_format = logging.Formatter(
-        '[%(asctime)s] [%(name)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    file_handler.setFormatter(file_log_format)
-    
-    # 로거 객체에 터미널 핸들러와 파일 핸들러를 모두 추가합니다.
-    new_logger.addHandler(stream_handler)
-    new_logger.addHandler(file_handler)
-    
-    return new_logger
-
-
-# 이 파일이 모듈로서 불려오는 것이 아니라 직접 실행될 때만 테스트를 수행합니다.
-if __name__ == "__main__":
-    test_logger = get_logger('MAIN')
-    test_logger.info("로거 초기화가 성공적으로 완료되었습니다.")
-    test_logger.debug("상세한 디버그 정보를 출력합니다.")
-    test_logger.warning("시스템 주의 사항이 발생했습니다.")
-    test_logger.error("실행 도중 오류가 감지되었습니다.")
+    return logger
