@@ -1,21 +1,13 @@
-# 핵심 프레임워크 
+# 핵심 엔진 (안정화 버전 고정)
 langchain<0.2.0
 langchain-community<0.2.0
-
-# UI 및 웹 서비스
-streamlit>=1.28.0
-watchdog
-requests
-
-# 비전 및 수치 연산 
+# 비전 및 수치 연산 (충돌 방지 버전)
 numpy<2.0.0
 opencv-python<4.9.0
 opencv-contrib-python<4.9.0
 Pillow>=10.0.0
-
-# 장치 연결 및 인공지능 도구
+# UI 및 장치
+streamlit>=1.28.0
 pyrealsense2>=2.55.0
 ultralytics>=8.3.0
-openai
-tiktoken
-av
+requests

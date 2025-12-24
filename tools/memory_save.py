@@ -1,39 +1,40 @@
 # tools/memory_save.py
 # ================================================================================
-# MACH VII - 도구 6: Memory Save (기억 저장 - Phase 1: Session State)
-# Phase 2에서 LAG(지식그래프) 통합 예정
+# MACH VII - 도구 6: Memory Save (기억 저장 - 안정화 버전)
 # ================================================================================
 
 import streamlit as st
 from datetime import datetime
-from langchain_core.tools import tool
+from langchain.tools import tool # 안정화 버전에 맞게 수정
 from logger import get_logger
 
 logger = get_logger('TOOLS')
 
 @tool
-def memory_save(key: str, value: str) -> str:
+def memory_save(input_str: str) -> str:
     """
-    기억 저장 (Session State 기반)
+    기억을 저장합니다. 
+    입력 형식은 반드시 '키, 값' 형태여야 합니다. (예: '이름, 맹칠이')
     
     Args:
-        key: 저장할 키 (예: "user_name", "favorite_color")
-        value: 저장할 값
-    
-    Returns:
-        저장 결과 메시지
-    
-    Note:
-        Phase 2에서 LAG 지식그래프로 업그레이드 예정
+        input_str: 저장할 키와 값을 쉼표(,)로 구분한 문자열
     """
     try:
-        logger.info(f"memory_save 호출: {key}={value}")
+        logger.info(f"memory_save 호출: {input_str}")
         
-        # session_state에 메모리 딕셔너리 초기화
+        # 1. 입력값 분리: 쉼표를 기준으로 키와 값을 나눕니다.
+        if ',' not in input_str:
+            return "⚠️ 오류: '키, 값' 형식으로 입력해야 합니다. (예: 사용자이름, 공주마마)"
+            
+        key, value = input_str.split(',', 1)
+        key = key.strip()
+        value = value.strip()
+        
+        # 2. session_state 메모리 초기화
         if "memory" not in st.session_state:
             st.session_state.memory = {}
         
-        # 타임스탬프와 함께 저장
+        # 3. 데이터 저장
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.memory[key] = {
             'value': value,
