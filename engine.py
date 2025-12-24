@@ -64,6 +64,8 @@ class MachEngine:
             "1. 단순 객체 탐지는 'vision_detect'를 사용하세요. "
             "2. 옷차림, 색상 등 상세 분석은 'vision_analyze'를 사용하세요. "
             "3. 모든 사고 과정은 정해진 양식(Thought, Action, Action Input 등)을 엄격히 따르세요."
+            "4. 대화 상황에 맞는 감정을 'emotion_set' 도구로 반드시 표현하세요."
+            "5. 생각 과정에서도 생각에 맞는 감정을 'emotion_set' 도구로 반드시 표현하세요. "
         )
 
         return initialize_agent(
