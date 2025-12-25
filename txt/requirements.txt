@@ -6,7 +6,7 @@ langchain-community<0.2.0
 streamlit>=1.28.0
 streamlit-autorefresh 
 
-# 비전 및 수치 연산 (경량화 및 충돌 방지)
+# 비전 및 수치 연산 
 numpy<2.0.0
 opencv-python<4.9.0
 ultralytics>=8.3.0
@@ -15,3 +15,4 @@ pyrealsense2>=2.55.0
 # 기타 유틸리티
 requests
 Pillow
+falkordb
