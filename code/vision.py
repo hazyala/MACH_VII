@@ -8,7 +8,7 @@ from logger import get_logger
 logger = get_logger('VISION')
 
 class VisionSystem:
-    def __init__(self, model_path='yolo11n.pt'):
+    def __init__(self, model_path='../data/models/yolo11n.pt'):
         try:
             self.pipeline = rs.pipeline()
             self.config = rs.config()

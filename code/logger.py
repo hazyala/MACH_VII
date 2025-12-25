@@ -26,7 +26,7 @@ def setup_terminal_logging():
     """
     프로그램의 모든 터미널 출력을 파일로 저장하도록 설정하는 함수입니다.
     """
-    log_dir = "logs"
+    log_dir = "../data/logs"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
         
