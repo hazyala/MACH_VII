@@ -1,65 +1,53 @@
-# tools/memory_load.py
-# ================================================================================
-# MACH VII - 도구 7: Memory Load (기억 조회 - Phase 1: Session State)
-# Phase 2에서 LAG 쿼리로 업그레이드 예정
-# ================================================================================
-
 import streamlit as st
 from langchain_core.tools import tool
+from falkordb import FalkorDB
 from logger import get_logger
 
+# 도구 로그 기록을 위한 로거 설정
 logger = get_logger('TOOLS')
 
 @tool
 def memory_load(query: str) -> str:
     """
-    저장된 기억 조회
-    
-    Args:
-        query: 조회할 키 또는 키워드 (예: "user_name", "favorite")
-    
-    Returns:
-        조회된 기억 정보
-    
-    Note:
-        Phase 2에서 LAG 지식그래프 쿼리로 업그레이드 예정
+    현재 접속 중인 사용자의 기억 신경망(FalkorDB)에서 정보를 조회합니다.
+    기본적으로 'Princess' 혹은 'Army' 노드와 연결된 사실(Fact)을 찾습니다.
     """
     try:
         logger.info(f"memory_load 호출: {query}")
         
-        # session_state에 메모리 없으면 생성
-        if "memory" not in st.session_state:
-            st.session_state.memory = {}
+        # 1. 세션 상태에서 현재 사용자를 확인 (기본은 Princess)
+        current_user = st.session_state.get("current_user", "Princess")
         
-        memory = st.session_state.memory
+        # 2. FalkorDB 연결 및 그래프 선택
+        db = FalkorDB(host='localhost', port=6379)
+        graph = db.select_graph('MachSeven_Memory')
         
-        if not memory:
-            logger.info("저장된 기억 없음")
-            return "저장된 기억이 없습니다."
+        # 3. 기억 검색 쿼리 (현재 사용자와 연결된 Fact 노드만 조회)
+        search_query = """
+        MATCH (u:User {name: $user_name})-[:HAS_FACT]->(f:Fact)
+        WHERE f.content CONTAINS $search_text
+        RETURN f.content, f.timestamp
+        ORDER BY f.timestamp DESC
+        """
         
-        # 정확한 키 매칭
-        if query in memory:
-            value = memory[query]['value']
-            timestamp = memory[query]['timestamp']
-            result = f"✅ 기억: {query} = {value} (저장 시간: {timestamp})"
-            logger.info(result)
-            return result
+        params = {
+            "user_name": current_user,
+            "search_text": query
+        }
         
-        # 키워드 매칭 (부분 일치)
-        query_lower = query.lower()
-        matching_keys = [k for k in memory.keys() if query_lower in k.lower()]
+        result = graph.query(search_query, params)
         
-        if matching_keys:
-            result = "관련 기억:\n"
-            for key in matching_keys:
-                value = memory[key]['value']
-                result += f"  - {key}: {value}\n"
-            logger.info(f"부분 일치 기억 찾음: {matching_keys}")
-            return result
+        # 4. 결과가 없을 경우 처리
+        if not result.result_set:
+            return f"[{current_user}]님에 대한 '{query}' 관련 기억을 찾을 수 없습니다."
+            
+        # 5. 결과 목록 생성
+        memories = [f"- {row[0]} (기록: {row[1]})" for row in result.result_set]
         
-        logger.info(f"기억 찾을 수 없음: {query}")
-        return f"'{query}'에 관한 기억을 찾을 수 없습니다."
+        response = f"✅ [{current_user}]님의 기억 창고에서 다음 내용을 찾았습니다:\n" + "\n".join(memories)
+        logger.info(f"조회 성공: {len(memories)}건")
+        return response
         
     except Exception as e:
         logger.error(f"memory_load 오류: {e}")
-        return f"오류 발생: {str(e)}"
+        return f"❌ 기억 조회 중 오류가 발생했습니다: {str(e)}"

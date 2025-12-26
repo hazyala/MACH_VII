@@ -45,7 +45,8 @@ if "messages" not in st.session_state:
         "messages": [], 
         "current_emotion": "idle", 
         # 절대 경로를 사용하여 표정 파일 위치를 명시
-        "current_emotion_path": os.path.join(data_directory, "assets/gif/idle.gif")
+        "current_emotion_path": os.path.join(data_directory, "assets/gif/idle.gif"),
+        "current_user": "Princess"
     })
 
 @st.cache_resource

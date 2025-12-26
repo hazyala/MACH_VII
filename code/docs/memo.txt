@@ -28,3 +28,6 @@ fuser /dev/video*
 
 # 만약 결과가 나온다면, 해당 프로세스를 강제로 종료합니다 (예: PID가 1234인 경우)
 kill -9 [찾은PID]
+
+# 4. 도커 실행
+# docker start MachSeven_brain

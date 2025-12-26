@@ -5,59 +5,58 @@ from datetime import datetime
 
 class TerminalTee:
     """
-    터미널 출력(stdout)을 가로채어 파일에도 동시에 기록하는 클래스입니다.
+    터미널 출력 내용을 가로채서 파일에도 동시에 기록하는 클래스입니다.
     """
     def __init__(self, filename):
         self.terminal = sys.stdout
         self.log_file = open(filename, "a", encoding="utf-8")
 
     def write(self, message):
-        """터미널과 파일 양쪽에 메시지를 씁니다."""
+        """터미널과 로그 파일 양쪽에 메시지를 작성합니다."""
         self.terminal.write(message)
         self.log_file.write(message)
         self.log_file.flush()
 
     def flush(self):
-        """출력 버퍼를 비웁니다."""
+        """출력 버퍼를 비워 기록을 확정합니다."""
         self.terminal.flush()
         self.log_file.flush()
 
 def setup_terminal_logging():
     """
-    프로그램의 모든 터미널 출력을 파일로 저장하도록 설정하는 함수입니다.
+    모든 터미널 출력을 data/logs 폴더의 파일로 저장하도록 설정합니다.
     """
-    log_dir = "../data/logs"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-        
-    date_str = datetime.now().strftime("%Y%m%d")
-    full_log_path = os.path.join(log_dir, f"terminal_full_{date_str}.log")
+    # 현재 파일(logger.py)의 절대 경로를 기준으로 data 폴더 위치를 계산합니다.
+    base_directory = os.path.dirname(os.path.abspath(__file__))
+    log_directory = os.path.normpath(os.path.join(base_directory, "..", "data", "logs"))
     
-    # 표준 출력을 가로챕니다.
+    if not os.path.exists(log_directory):
+        os.makedirs(log_directory)
+        
+    date_string = datetime.now().strftime("%Y%m%d")
+    full_log_path = os.path.join(log_directory, f"terminal_full_{date_string}.log")
+    
+    # 표준 출력을 TerminalTee 클래스로 교체하여 파일 기록을 시작합니다.
     sys.stdout = TerminalTee(full_log_path)
-    print(f"\n[SYSTEM] 모든 터미널 기록이 {full_log_path}에 저장됩니다.\n")
+    print(f"\n[SYSTEM] Log path initialized: {full_log_path}\n")
 
 def get_logger(name):
     """
-    기존의 모듈별 로깅 기능을 수행하는 로거를 생성합니다.
+    모듈별 로깅 기능을 수행하는 로거 인스턴스를 생성합니다.
     """
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     if logger.handlers:
         logger.handlers.clear()
     
-    # 터미널 출력 설정 (이미 sys.stdout이 Tee로 교체되어 파일에도 같이 적힙니다.)
     stream_handler = logging.StreamHandler(sys.stdout)
     
-    # 이모지 매핑 (마마의 교지에 따라 로깅에는 이모지를 사용합니다.)
-    emojis = {'VISION': '👁️ ', 'ENGINE': '⚙️ ', 'AGENT': '🧠', 'TOOLS': '🛠️ '}
-    emoji = emojis.get(name.upper(), '📌')
-    
-    class EmojiFormatter(logging.Formatter):
+    class LogFormatter(logging.Formatter):
+        """로그 메시지의 형식을 지정하는 클래스입니다."""
         def format(self, record):
-            t = datetime.now().strftime("%H:%M:%S")
-            return f"[{t}] [{emoji} {record.name.upper()}] {record.getMessage()}"
+            time_str = datetime.now().strftime("%H:%M:%S")
+            return f"[{time_str}] [{record.name.upper()}] {record.getMessage()}"
             
-    stream_handler.setFormatter(EmojiFormatter())
+    stream_handler.setFormatter(LogFormatter())
     logger.addHandler(stream_handler)
     return logger

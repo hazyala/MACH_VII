@@ -1,11 +1,7 @@
-# tools/memory_save.py
-# ================================================================================
-# MACH VII - 도구 6: Memory Save (기억 저장 - 안정화 버전)
-# ================================================================================
-
 import streamlit as st
 from datetime import datetime
-from langchain.tools import tool # 안정화 버전에 맞게 수정
+from langchain.tools import tool
+from falkordb import FalkorDB
 from logger import get_logger
 
 logger = get_logger('TOOLS')
@@ -13,38 +9,40 @@ logger = get_logger('TOOLS')
 @tool
 def memory_save(input_str: str) -> str:
     """
-    기억을 저장합니다. 
-    입력 형식은 반드시 '키, 값' 형태여야 합니다. (예: '이름, 맹칠이')
-    
-    Args:
-        input_str: 저장할 키와 값을 쉼표(,)로 구분한 문자열
+    사용자의 어명이 있을 때만 대화 내용을 FalkorDB 신경망에 영구 저장합니다.
+    기본 저장 대상은 'Princess'입니다.
     """
     try:
         logger.info(f"memory_save 호출: {input_str}")
         
-        # 1. 입력값 분리: 쉼표를 기준으로 키와 값을 나눕니다.
-        if ',' not in input_str:
-            return "⚠️ 오류: '키, 값' 형식으로 입력해야 합니다. (예: 사용자이름, 공주마마)"
-            
-        key, value = input_str.split(',', 1)
-        key = key.strip()
-        value = value.strip()
+        # 1. 기본 사용자를 'Princess'로 설정 (마마의 권위를 최우선으로 함)
+        current_user = st.session_state.get("current_user", "Princess")
         
-        # 2. session_state 메모리 초기화
-        if "memory" not in st.session_state:
-            st.session_state.memory = {}
+        # 2. FalkorDB 연결 (마하세븐 브레인 함으로 접속)
+        db = FalkorDB(host='localhost', port=6379)
+        graph = db.select_graph('MachSeven_Memory')
         
-        # 3. 데이터 저장
+        # 3. 데이터 저장 쿼리
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.memory[key] = {
-            'value': value,
-            'timestamp': timestamp
-        }
         
-        result = f"✅ 기억 저장 완료: {key} = {value}"
-        logger.info(result)
-        return result
+        save_query = """
+        MATCH (u:User {name: $user_name})
+        CREATE (u)-[:HAS_FACT]->(f:Fact {
+            content: $content, 
+            timestamp: $timestamp
+        })
+        RETURN f
+        """
+        
+        params = {
+            "user_name": current_user,
+            "content": input_str.strip(),
+            "timestamp": timestamp
+        }
+        graph.query(save_query, params)
+        
+        return f"✅ [{current_user}] 모드로 소중히 기억하였나이다: {input_str}"
         
     except Exception as e:
-        logger.error(f"memory_save 오류: {e}")
-        return f"오류 발생: {str(e)}"
+        logger.error(f"기억 저장 중 불충 발생: {e}")
+        return f"❌ 송구하오나 기억 저장에 실패하였나이다: {str(e)}"
