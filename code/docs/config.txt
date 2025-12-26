@@ -18,13 +18,14 @@
 ## 🧠 인공지능 모델 설정 (AI Models)
 ================================================================================
 - Object Detection: YOLOv11s (Confidence Threshold: 0.5)
-- Reasoning (LLM): Gemma3:4b (via Ollama)
-- Vision-Language (VLM): Gemma3:4b (Multimodal)
+- Reasoning (LLM): Gemma3:27b (via Ollama)
+- Vision-Language (VLM): Gemma3:27b (Multimodal)
 
 ================================================================================
 ## 💾 메모리 및 데이터베이스 (Memory & RAG)
 ================================================================================
-- Memory Type: FalkorDB 기반 RAG(Retrieval-Augmented Generation) 시스템
+- Memory Type: FalkorDB 기반 
+- RAG(Retrieval-Augmented Generation) 시스템
 - Scope: 대화 맥락 유지, 객체 위치 정보 저장, 사용자 선호도 학습
 
 ================================================================================

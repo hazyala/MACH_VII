@@ -6,6 +6,8 @@ from streamlit.runtime.scriptrunner import add_script_run_ctx
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain_community.chat_models import ChatOllama
 from langchain.agents import initialize_agent, AgentType
+from langchain.memory import ConversationSummaryBufferMemory
+from langchain.prompts import MessagesPlaceholder # [추가] 대화 맥락 주입을 위한 전용 객체
 
 from vision import VisionSystem
 from tools import TOOLS
@@ -16,10 +18,7 @@ logger = get_logger('ENGINE')
 agent_logger = get_logger('AGENT')
 
 class AgentFileLogger(BaseCallbackHandler):
-    """
-    에이전트의 사고 과정(Thought, Action 등)을 실시간으로 가로채어 
-    로그 파일에 기록하는 사관 역할을 수행합니다.
-    """
+    """에이전트의 사고 과정을 로그 파일에 실시간으로 기록합니다."""
     def on_chain_start(self, serialized, inputs, **kwargs):
         agent_logger.info("\n> Entering new AgentExecutor chain...")
 
@@ -42,27 +41,36 @@ class AgentFileLogger(BaseCallbackHandler):
 
 class MachEngine:
     def __init__(self):
-        """
-        비전 시스템과 에이전트를 초기화합니다.
-        vision.py가 절대 경로를 사용하므로 인자 없이 호출합니다.
-        """
+        """비전 시스템과 메모리, 에이전트를 초기화합니다."""
         self.vision = VisionSystem()
         self.last_frame = None
         self.last_vision_result = "nothing"
         self.last_coordinates = []
         
-        # 맹칠이의 사고를 담당할 에이전트 초기화
+        # 모델 서버 연결 설정 (요약과 추론에 공통 사용)
+        self.llm = ChatOllama(
+            model="gemma3:27b", 
+            base_url="http://ollama.aikopo.net", 
+            temperature=0.0
+        )
+        
+        # [핵심] 대화 요약 기능을 포함한 버퍼 메모리 설정
+        # return_messages=True 설정을 통해 메시지 객체 형태로 기억을 유지합니다.
+        self.memory = ConversationSummaryBufferMemory(
+            llm=self.llm,
+            max_token_limit=1000, 
+            memory_key="chat_history",
+            return_messages=True,
+            output_key="output"
+        )
+        
         self.agent_executor = self._init_agent()
         self.is_running = False
 
     def _init_agent(self):
-        """
-        에이전트의 성격과 행동 지침을 설정합니다.
-        """
-        # 고성능 추론 모델인 gemma3:27b를 기본으로 사용합니다.
-        llm = ChatOllama(model="gemma3:27b", base_url="http://ollama.aikopo.net", temperature=0.0)
+        """마마의 8대 강령을 유지하며 필수 지침만 추가하여 에이전트를 초기화합니다."""
         
-        # 마마께서 하사하신 맹칠이의 엄격한 8대 행동 강령
+        # 마마께서 하사하신 기존 8대 강령에 필수 물리 지침 2개를 추가함
         system_instruction = (
             "당신은 로봇 조수 '맹칠'입니다. 한국어로 정중히 답변하세요. "
             "1. 단순 객체 탐지는 'vision_detect'를 사용하세요. "
@@ -72,45 +80,53 @@ class MachEngine:
             "5. 생각 과정에서도 생각에 맞는 감정을 'emotion_set' 도구로 반드시 표현하세요. "
             "6. 사용자가 '기억해', '저장해', '각인해' 등 명시적으로 기록을 명령할 때만 'memory_save' 도구를 사용하여 정보를 저장하세요. 그 외의 일상 대화는 저장하지 않습니다. "
             "7. 사용자가 과거에 대해 묻거나 '무엇을 알고 있느냐'고 물으면 'memory_load' 도구를 사용하여 기억을 조회하세요. "
-            "8. 기본 사용자는 'Princess'이며, 별도의 언급이 없는 한 모든 기억은 'Princess' 노드와 연결됩니다."
+            "8. 기본 사용자는 'Princess'이며, 별도의 언급이 없는 한 모든 기억은 'Princess' 노드와 연결됩니다. "
+            "9. 이전 대화 내용(chat_history)을 참고하여 문맥에 맞는 답변을 하세요. "
+            "10. 현재 마하세븐은 바퀴나 발이 없어 이동이 불가하며, 팔의 동작은 'robot_action'으로만 수행합니다."
         )
 
         return initialize_agent(
             tools=TOOLS, 
-            llm=llm, 
-            agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+            llm=self.llm, 
+            # 다중 입력을 지원하는 구조적 에이전트 설정
+            agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION, 
             verbose=True, 
             handle_parsing_errors=True,
             callbacks=[AgentFileLogger()],
-            agent_kwargs={"prefix": system_instruction}
+            memory=self.memory,
+            agent_kwargs={
+                "prefix": system_instruction,
+                # [오류 해결의 핵심] 문자열이 아닌 MessagesPlaceholder 객체를 전달합니다.
+                "memory_prompts": [MessagesPlaceholder(variable_name="chat_history")],
+                "input_variables": ["input", "agent_scratchpad", "chat_history"]
+            }
         )
 
     def run_agent(self, user_input, callbacks=None):
-        """사용자의 입력을 받아 에이전트를 실행하고 답변을 반환합니다."""
+        """에이전트를 실행하여 사용자 입력에 대응합니다."""
         try:
+            # invoke 호출 시 메모리가 자동으로 chat_history를 주입합니다.
             response = self.agent_executor.invoke(
                 {"input": user_input},
                 {"callbacks": callbacks}
             )
-            return response.get("output", "답변 생성 실패")
+            return response.get("output", "답변을 생성하지 못했습니다.")
         except Exception as e:
-            agent_logger.error(f"에이전트 실행 중 오류: {e}")
-            return f"오류 발생: {str(e)}"
+            agent_logger.error(f"에이전트 실행 오류: {e}")
+            return f"오류가 발생했습니다: {str(e)}"
 
     def start_vision_loop(self):
-        """별도의 스레드에서 실시간 카메라 영상 처리를 수행합니다."""
+        """비전 루프를 별도 스레드에서 시작합니다."""
         def run():
             self.is_running = True
             logger.info("Vision loop started")
             try:
                 while self.is_running:
-                    # vision.py를 통해 객체 탐지 및 좌표 획득
                     combined, color, text, coords = self.vision.process_frame()
                     if combined is not None:
                         self.last_frame = color
                         self.last_vision_result = text
                         self.last_coordinates = coords
-                        # 실시간 화면 출력 (q 입력 시 종료)
                         cv2.imshow("MACH VII - Live Vision", combined)
                         if cv2.waitKey(1) & 0xFF == ord('q'): break
                     time.sleep(0.01)
