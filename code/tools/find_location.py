@@ -1,8 +1,3 @@
-# tools/find_location.py
-# ================================================================================
-# MACH VII - 도구 3: Find Location (위치 검색)
-# ================================================================================
-
 import streamlit as st
 from langchain_core.tools import tool
 from logger import get_logger
@@ -23,7 +18,6 @@ def find_location(target: str) -> str:
     try:
         logger.info(f"find_location 호출: {target}")
         
-        # session_state에서 좌표 가져오기
         if "last_coordinates" not in st.session_state:
             logger.warning("좌표 정보 없음")
             return f"{target}을(를) 찾을 수 없습니다."
@@ -33,14 +27,14 @@ def find_location(target: str) -> str:
         if not coordinates:
             return f"{target}을(를) 찾을 수 없습니다."
         
-        # 대소문자 무시하고 검색
         target_lower = target.lower()
         
         for coord in coordinates:
             if coord['name'].lower() == target_lower:
+                # 단위를 mm에서 cm로 변경하여 위치 정보를 반환합니다.
                 result = (
                     f"{target}의 위치: "
-                    f"X={coord['x']}, Y={coord['y']}, Z={coord['z']}mm"
+                    f"X={coord['x']}, Y={coord['y']}, Z={coord['z']}cm"
                 )
                 logger.info(result)
                 return result
