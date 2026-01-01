@@ -1,3 +1,5 @@
+# code/engine.py
+
 import threading
 import time
 import cv2
@@ -7,18 +9,17 @@ from langchain.callbacks.base import BaseCallbackHandler
 from langchain_community.chat_models import ChatOllama
 from langchain.agents import initialize_agent, AgentType
 from langchain.memory import ConversationSummaryBufferMemory
-from langchain.prompts import MessagesPlaceholder # [추가] 대화 맥락 주입을 위한 전용 객체
+from langchain.prompts import MessagesPlaceholder
 
 from vision import VisionSystem
 from tools import TOOLS
 from logger import get_logger
 
-# 시스템 엔진 및 에이전트 기록을 위한 로거 설정
 logger = get_logger('ENGINE')
 agent_logger = get_logger('AGENT')
 
 class AgentFileLogger(BaseCallbackHandler):
-    """에이전트의 사고 과정을 로그 파일에 실시간으로 기록합니다."""
+    """에이전트의 사고 과정을 로그 파일에 실시간으로 기록하는 클래스입니다."""
     def on_chain_start(self, serialized, inputs, **kwargs):
         agent_logger.info("\n> Entering new AgentExecutor chain...")
 
@@ -47,15 +48,12 @@ class MachEngine:
         self.last_vision_result = "nothing"
         self.last_coordinates = []
         
-        # 모델 서버 연결 설정 (요약과 추론에 공통 사용)
         self.llm = ChatOllama(
             model="gemma3:27b", 
             base_url="http://ollama.aikopo.net", 
             temperature=0.0
         )
         
-        # [핵심] 대화 요약 기능을 포함한 버퍼 메모리 설정
-        # return_messages=True 설정을 통해 메시지 객체 형태로 기억을 유지합니다.
         self.memory = ConversationSummaryBufferMemory(
             llm=self.llm,
             max_token_limit=1000, 
@@ -64,13 +62,13 @@ class MachEngine:
             output_key="output"
         )
         
+        # 클래스 내부의 _init_agent 함수를 올바르게 호출합니다.
         self.agent_executor = self._init_agent()
         self.is_running = False
 
     def _init_agent(self):
-        """마마의 8대 강령을 유지하며 필수 지침만 추가하여 에이전트를 초기화합니다."""
+        """마마의 12대 강령을 완벽히 수록하여 에이전트를 초기화합니다."""
         
-        # 마마께서 하사하신 기존 8대 강령에 필수 물리 지침 2개를 추가함
         system_instruction = (
             "당신은 로봇 조수 '맹칠'입니다. 한국어로 정중히 답변하세요. "
             "1. 단순 객체 탐지는 'vision_detect'를 사용하세요. "
@@ -82,13 +80,15 @@ class MachEngine:
             "7. 사용자가 과거에 대해 묻거나 '무엇을 알고 있느냐'고 물으면 'memory_load' 도구를 사용하여 기억을 조회하세요. "
             "8. 기본 사용자는 'Princess'이며, 별도의 언급이 없는 한 모든 기억은 'Princess' 노드와 연결됩니다. "
             "9. 이전 대화 내용(chat_history)을 참고하여 문맥에 맞는 답변을 하세요. "
-            "10. 현재 마하세븐은 바퀴나 발이 없어 이동이 불가하며, 팔의 동작은 'robot_action'으로만 수행합니다."
+            "10. 현재 마하세븐은 바퀴나 발이 없어 이동이 불가하며, 팔의 동작은 'robot_action'으로만 수행합니다. "
+            "11. [필수] 'robot_action' 사용 시, 'target_x_cm', 'target_y_cm', 'target_z_cm' 매개변수를 반드시 JSON 형식에 포함하십시오. "
+            "12. [필수] 현재는 '점진적 접근' 모드이므로, 한 번 이동 후에는 반드시 vision_detect로 결과를 재확인하는 루프를 수행하십시오."
+            "13. [필독] 만약 robot_action에서 '범위 이탈' 혹은 '닿지 않는다'는 보고를 받으면, 더 이상 시도하지 말고 즉시 그 이유를 공주마마께 아뢰고 행동을 종료하십시오. 억지로 반복하는 것은 불충입니다."
         )
 
         return initialize_agent(
             tools=TOOLS, 
             llm=self.llm, 
-            # 다중 입력을 지원하는 구조적 에이전트 설정
             agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION, 
             verbose=True, 
             handle_parsing_errors=True,
@@ -96,7 +96,6 @@ class MachEngine:
             memory=self.memory,
             agent_kwargs={
                 "prefix": system_instruction,
-                # [오류 해결의 핵심] 문자열이 아닌 MessagesPlaceholder 객체를 전달합니다.
                 "memory_prompts": [MessagesPlaceholder(variable_name="chat_history")],
                 "input_variables": ["input", "agent_scratchpad", "chat_history"]
             }
@@ -105,7 +104,6 @@ class MachEngine:
     def run_agent(self, user_input, callbacks=None):
         """에이전트를 실행하여 사용자 입력에 대응합니다."""
         try:
-            # invoke 호출 시 메모리가 자동으로 chat_history를 주입합니다.
             response = self.agent_executor.invoke(
                 {"input": user_input},
                 {"callbacks": callbacks}

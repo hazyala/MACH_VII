@@ -64,27 +64,28 @@ st.session_state.engine = engine
 col_left, col_right = st.columns([1, 2.5])
 
 # 좌측 영역: 로봇의 표정 및 실시간 비전 정보 표시
+# code/main.py (이미지 출력 부분)
+
 with col_left:
     st.header("MACH VII")
     
-    # 표정 파일 존재 여부 확인 후 이미지 표시
+    # [수정] 최신 규격 반영: use_container_width 대신 width='stretch' 사용
     if os.path.exists(st.session_state.current_emotion_path):
-        st.image(st.session_state.current_emotion_path, use_container_width=True)
+        st.image(st.session_state.current_emotion_path, width='stretch')
     else:
         st.warning("Expression file not found.")
         
     st.subheader(f"Status: {st.session_state.current_emotion.upper()}")
     st.divider()
     
-    # 실시간 사물 인식 결과 표시
     st.markdown("### Vision Information")
     st.info(f"Detected: {engine.last_vision_result}")
     
-    # 인식된 물체의 상세 좌표(XYZ) 표시
+    # [수정] 마마의 명을 받들어 단위를 cm로 일원화하였나이다.
     if engine.last_coordinates:
         with st.expander("Details", expanded=True):
             for coord in engine.last_coordinates:
-                st.write(f"- {coord['name']}: Z={coord['z']}mm")
+                st.write(f"- {coord['name']}: Z={coord['z']}cm")
 
 # 우측 영역: 대화형 인터페이스
 with col_right:
