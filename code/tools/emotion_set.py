@@ -1,64 +1,65 @@
 import streamlit as st
-import os
+import json
 from langchain.tools import tool
 from logger import get_logger
 
-# 도구 로그 기록을 위한 로거 생성
 logger = get_logger('TOOLS')
 
-# 현재 파일(emotion_set.py)의 절대 경로를 획득
-current_file_path = os.path.abspath(__file__)
-# code/tools 폴더의 위치
-tools_directory = os.path.dirname(current_file_path)
-# 상위의 상위 폴더로 이동하여 data 폴더의 절대 경로 산출
-data_directory = os.path.normpath(os.path.join(tools_directory, "..", "..", "data"))
-
-# 감정 상태별 GIF 파일의 절대 경로 지도(Dictionary)
-EMOTION_MAP = {
-    'idle': os.path.join(data_directory, 'assets/gif/idle.gif'),
-    'thinking': os.path.join(data_directory, 'assets/gif/thinking.gif'),
-    'happy': os.path.join(data_directory, 'assets/gif/happy.gif'),
-    'sad': os.path.join(data_directory, 'assets/gif/sad.gif'),
-    'angry': os.path.join(data_directory, 'assets/gif/angry.gif'),
-    'confused': os.path.join(data_directory, 'assets/gif/confused.gif')
-}
-
-# 사용자 입력 단어를 표준 감정 키값으로 변환해주는 매핑 테이블
-INPUT_KEY_MAP = {
-    'happy': 'happy', '행복': 'happy', '기쁨': 'happy', '즐거움': 'happy',
-    'thinking': 'thinking', '생각': 'thinking', '고민': 'thinking', '추론': 'thinking',
-    'sad': 'sad', '슬픔': 'sad', '우울': 'sad', '서운': 'sad',
-    'angry': 'angry', '화남': 'angry', '분노': 'angry', '짜증': 'angry',
-    'confused': 'confused', '당황': 'confused', '혼란': 'confused',
-    'idle': 'idle', '대기': 'idle', '보통': 'idle'
+# 1. 기본 감정 프리셋 (에이전트가 단어로 말할 때를 대비한 기본값)
+# 값 범위 -> eye: 0~100, mouth: -100~100, color: Hex Code
+EMOTION_PRESETS = {
+    'idle':     {'eye': 100, 'mouth': 0,   'color': '#00FFFF'}, # 기본 시안색
+    'happy':    {'eye': 90,  'mouth': 60,  'color': '#00FF00'}, # 기쁨의 녹색
+    'joy':      {'eye': 85,  'mouth': 80,  'color': '#00FF00'},
+    'sad':      {'eye': 40,  'mouth': -60, 'color': '#0000FF'}, # 슬픔의 파랑
+    'angry':    {'eye': 70,  'mouth': -40, 'color': '#FF0000'}, # 분노의 빨강
+    'thinking': {'eye': 60,  'mouth': 10,  'color': '#FFD700'}, # 생각의 노랑
+    'confused': {'eye': 100, 'mouth': -10, 'color': '#FF00FF'}, # 혼란의 보라
+    'sleepy':   {'eye': 10,  'mouth': 0,   'color': '#555555'}
 }
 
 @tool
 def emotion_set(emotion_input: str) -> str:
     """
-    로봇의 감정 상태를 변경하는 도구입니다. 
-    입력된 단어에 맞춰 맹칠이의 표정(GIF)을 전환합니다.
+    Sets the robot's facial expression.
+    Inputs can be:
+    1. A preset name (e.g., 'happy', 'angry', 'thinking')
+    2. A JSON string for custom control (e.g., '{"eye": 50, "mouth": -30, "color": "#FFA500"}')
+       - eye: 0 (closed) to 100 (open)
+       - mouth: -100 (sad) to 100 (happy)
     """
     try:
-        # 입력값 정제 (공백 제거 및 소문자 변환)
-        clean_input = emotion_input.lower().strip()
+        clean_input = emotion_input.strip()
+        new_params = {}
+
+        # 경우 1: 입력이 JSON 형식인 경우 (에이전트가 섬세하게 조절할 때)
+        if clean_input.startswith('{'):
+            try:
+                custom_params = json.loads(clean_input)
+                # 기존 값 유지하면서 업데이트 (Partial Update)
+                current = st.session_state.get('face_params', EMOTION_PRESETS['idle'])
+                current.update(custom_params)
+                new_params = current
+                logger.info(f"Custom Expression Set: {new_params}")
+            except json.JSONDecodeError:
+                return "Error: Invalid JSON format for expression."
         
-        # 매핑 테이블을 확인하여 표준 감정 키 획득
-        target_emotion = INPUT_KEY_MAP.get(clean_input, clean_input)
+        # 경우 2: 입력이 프리셋 단어인 경우
+        else:
+            key = clean_input.lower()
+            if key in EMOTION_PRESETS:
+                new_params = EMOTION_PRESETS[key]
+                logger.info(f"Preset Expression Set: {key}")
+            else:
+                # 없는 단어면 기본 idle로 설정하되 경고 반환
+                new_params = EMOTION_PRESETS['idle']
+                return f"Unknown emotion '{clean_input}'. Set to idle."
+
+        # 세션 상태에 'face_params'라는 딕셔너리로 저장
+        st.session_state.face_params = new_params
         
-        # 유효하지 않은 감정일 경우 경고 반환
-        if target_emotion not in EMOTION_MAP:
-            logger.warning(f"Invalid emotion input: {emotion_input}")
-            return f"{emotion_input} is not a supported emotion."
-        
-        # 세션 상태(st.session_state)에 감정 정보와 이미지의 절대 경로 저장
-        st.session_state.current_emotion = target_emotion
-        st.session_state.current_emotion_path = EMOTION_MAP[target_emotion]
-        
-        logger.info(f"Emotion changed successfully: {target_emotion}")
-        return f"Maengchil's expression has been changed to {target_emotion}."
-        
+        return f"Face updated: Eye={new_params.get('eye')}, Mouth={new_params.get('mouth')}"
+
     except Exception as error:
-        # 오류 발생 시 로그 기록 및 메시지 반환
         logger.error(f"Error in emotion_set: {error}")
-        return f"Failed to change expression: {str(error)}"
+        return f"Failed to set emotion: {str(error)}"

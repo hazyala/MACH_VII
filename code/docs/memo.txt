@@ -33,3 +33,6 @@ fuser /dev/video*
 # 4. 도커 실행
 # 기억 장치인 FalkorDB 컨테이너를 구동합니다.
 # docker start MachSeven_brain
+
+# 5. 표정 샘플 실행
+# streamlit run code/scripts/face_sample.py

@@ -1,7 +1,9 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 from logger import setup_terminal_logging
 from engine import MachEngine
+from face_renderer import render_face_svg 
 from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
 
 # 시스템 기록 시작 (터미널 출력을 로그 파일로 저장하는 설정)
@@ -39,13 +41,11 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # 2. 세션 상태(st.session_state) 초기화
-# 세션 상태는 웹 페이지가 새로고침되어도 변수 값을 유지해주는 저장소임
 if "messages" not in st.session_state:
     st.session_state.update({
-        "messages": [], 
-        "current_emotion": "idle", 
-        # 절대 경로를 사용하여 표정 파일 위치를 명시
-        "current_emotion_path": os.path.join(data_directory, "assets/gif/idle.gif"),
+        "messages": [],
+        # 기본 표정 파라미터 초기화 (idle 상태)
+        "face_params": {"eye": 100, "mouth": 0, "color": "#00FFFF"},
         "current_user": "Princess"
     })
 
@@ -69,19 +69,29 @@ col_left, col_right = st.columns([1, 2.5])
 with col_left:
     st.header("MACH VII")
     
-    # [수정] 최신 규격 반영: use_container_width 대신 width='stretch' 사용
-    if os.path.exists(st.session_state.current_emotion_path):
-        st.image(st.session_state.current_emotion_path, width='stretch')
-    else:
-        st.warning("Expression file not found.")
-        
-    st.subheader(f"Status: {st.session_state.current_emotion.upper()}")
-    st.divider()
+    # 1. 표정 파라미터 가져오기
+    params = st.session_state.get("face_params", {"eye": 100, "mouth": 0, "color": "#00FFFF"})
     
+    # 2. SVG 생성
+    face_svg = render_face_svg(
+        eye_openness=params.get("eye", 100),
+        mouth_curve=params.get("mouth", 0),
+        eye_color=params.get("color", "#00FFFF")
+    )
+    
+    # 3. [수정] 불필요한 st.markdown 껍데기를 제거하고 바로 출력합니다.
+    # SVG 내부에 이미 검은 배경(rect)이 있으므로 깔끔하게 나옵니다.
+    components.html(face_svg, height=400, scrolling=False)
+    
+    # 상태 텍스트
+    status_text = st.session_state.get("current_emotion", "IDLE").upper()
+    st.subheader(f"Status: {status_text}")
+    
+    # (이하 비전 정보 코드는 그대로 두시면 됩니다)
+    st.divider()
     st.markdown("### Vision Information")
     st.info(f"Detected: {engine.last_vision_result}")
     
-    # [수정] 마마의 명을 받들어 단위를 cm로 일원화하였나이다.
     if engine.last_coordinates:
         with st.expander("Details", expanded=True):
             for coord in engine.last_coordinates:
