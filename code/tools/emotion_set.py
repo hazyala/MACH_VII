@@ -1,77 +1,127 @@
-# code/tools/emotion_set.py
-
 import streamlit as st
 import json
+import re
+import sys
+import os
+
+# [중요] face_renderer를 임포트하기 위해 경로를 추가합니다.
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir) # code 폴더
+sys.path.append(parent_dir)
+
+from face_renderer import render_face_svg
 from langchain.tools import tool
 from logger import get_logger
 
 logger = get_logger('TOOLS')
 
-# 1. 기본 감정 프리셋 (에이전트가 단어로 말할 때를 대비한 기본값)
-# 값 범위 -> eye: 0~100, mouth: -100~100, color: Hex Code
+# 인사이드 아웃 감정 프리셋
 EMOTION_PRESETS = {
-    'idle':     {'eye': 100, 'mouth': 0,   'color': '#00FFFF'}, # 기본 시안색
-    'happy':    {'eye': 90,  'mouth': 60,  'color': '#00FF00'}, # 기쁨의 녹색
-    'joy':      {'eye': 85,  'mouth': 80,  'color': '#00FF00'},
-    'sad':      {'eye': 40,  'mouth': -60, 'color': '#0000FF'}, # 슬픔의 파랑
-    'angry':    {'eye': 70,  'mouth': -40, 'color': '#FF0000'}, # 분노의 빨강
-    'thinking': {'eye': 60,  'mouth': 10,  'color': '#FFD700'}, # 생각의 노랑
-    'confused': {'eye': 100, 'mouth': -10, 'color': '#FF00FF'}, # 혼란의 보라
-    'sleepy':   {'eye': 10,  'mouth': 0,   'color': '#555555'}
+    'idle':          {'eye': 100, 'mouth': 0,   'color': '#FFFFFF'},
+    'thinking':      {'eye': 60,  'mouth': 10,  'color': '#B0C4DE'},
+    'joy':           {'eye': 95,  'mouth': 80,  'color': '#FFD700'},
+    'sadness':       {'eye': 40,  'mouth': -60, 'color': '#4169E1'},
+    'anger':         {'eye': 70,  'mouth': -50, 'color': '#FF0000'},
+    'disgust':       {'eye': 60,  'mouth': -30, 'color': '#32CD32'},
+    'fear':          {'eye': 100, 'mouth': -10, 'color': '#9370DB'},
+    'anxiety':       {'eye': 85,  'mouth': -20, 'color': '#FF8C00'},
+    'embarrassment': {'eye': 50,  'mouth': -10, 'color': '#FF69B4'},
+    'envy':          {'eye': 90,  'mouth': 40,  'color': '#00CED1'},
+    'ennui':         {'eye': 30,  'mouth': 0,   'color': '#483D8B'},
+}
+
+KOREAN_MAPPING = {
+    '기쁨': 'joy', '슬픔': 'sadness', '버럭': 'anger', '화남': 'anger',
+    '까칠': 'disgust', '소심': 'fear', '불안': 'anxiety', 
+    '당황': 'embarrassment', '부럽': 'envy', '따분': 'ennui',
+    '생각': 'thinking', '대기': 'idle'
 }
 
 @tool
 def emotion_set(emotion_input: str) -> str:
     """
     Sets the robot's facial expression.
-    Inputs can be:
-    1. A preset name (e.g., 'happy', 'angry', 'thinking')
-    2. A custom parameter string (e.g., 'eye: 50, mouth: -30, color: #FFA500')
-       - eye: 0 (closed) to 100 (open)
-       - mouth: -100 (sad) to 100 (happy)
+    Supports JSON input (preferred) or keywords (e.g., 'joy', 'anxiety').
+    Updates the face visibly in REAL-TIME.
     """
     try:
         clean_input = emotion_input.strip()
         new_params = {}
+        target_preset_name = "CUSTOM"
 
-        # [핵심 수정] 입력값에 중괄호가 있거나 콜론(:)이 있으면 JSON 파싱 시도
-        # 에이전트가 중괄호를 빼고 보내도, 혹시 넣어서 보내도 처리할 수 있게 유연성 확보
-        if clean_input.startswith('{') or ':' in clean_input:
-            try:
-                # 중괄호가 없으면 양쪽에 붙여서 유효한 JSON 문자열로 변환
-                json_str = clean_input if clean_input.startswith('{') else f"{{{clean_input}}}"
-                
-                # 작은따옴표(')를 큰따옴표(")로 변환 (JSON 표준 맞춤)
-                json_str = json_str.replace("'", '"')
-                
-                custom_params = json.loads(json_str)
-                
-                # 기존 값 유지하면서 업데이트 (Partial Update)
-                current = st.session_state.get('face_params', EMOTION_PRESETS['idle'].copy())
-                current.update(custom_params)
-                new_params = current
-                logger.info(f"Custom Expression Set: {new_params}")
-            except json.JSONDecodeError:
-                # 파싱 실패 시 로그만 남기고 아래 프리셋 로직으로 넘어감 (혹시 'happy' 같은 단어일 수 있음)
-                logger.warning(f"JSON parsing failed for input: {clean_input}")
-                pass
+        # [1단계] JSON 파싱 시도 (가장 정확함)
+        # 에이전트가 {"eye": 100...} 형태로 보낼 때 완벽하게 처리
+        try:
+            # 혹시 모를 작은따옴표 처리
+            if "'" in clean_input and '"' not in clean_input:
+                clean_input = clean_input.replace("'", '"')
+            
+            # JSON 파싱
+            if "{" in clean_input:
+                # 중괄호 부분만 추출 시도 (앞뒤 잡다한 텍스트 제거)
+                start = clean_input.find("{")
+                end = clean_input.rfind("}") + 1
+                json_str = clean_input[start:end]
+                new_params = json.loads(json_str)
+                logger.info(f"JSON Parsed: {new_params}")
+        except Exception as e:
+            logger.warning(f"JSON parsing failed: {e}. Trying keywords/regex.")
         
-        # 위에서 파싱되지 않았다면 프리셋 단어로 간주
+        # [2단계] JSON 실패 시 키워드/Regex 파싱
         if not new_params:
-            key = clean_input.lower().replace('"', '').replace("'", "") # 따옴표 제거
-            if key in EMOTION_PRESETS:
-                new_params = EMOTION_PRESETS[key]
-                logger.info(f"Preset Expression Set: {key}")
+            lower_input = clean_input.lower()
+            # 키워드 매칭
+            keyword = re.sub(r'[^a-z0-9]', '', lower_input)
+            
+            # 한글/영어 매핑 확인
+            found_key = None
+            if keyword in EMOTION_PRESETS:
+                found_key = keyword
             else:
-                # 알 수 없는 입력이면 idle로 설정하되 메시지 반환
-                new_params = EMOTION_PRESETS['idle']
-                return f"Unknown emotion '{clean_input}'. Set to idle."
+                for kr, en in KOREAN_MAPPING.items():
+                    if kr in lower_input:
+                        found_key = en
+                        break
+            
+            if found_key:
+                new_params = EMOTION_PRESETS[found_key].copy()
+                target_preset_name = found_key.upper()
+            else:
+                # 최후의 수단: Regex로 숫자와 색상 추출
+                eye = re.search(r'eye\D*(\d+)', lower_input)
+                if eye: new_params['eye'] = int(eye.group(1))
+                
+                mouth = re.search(r'mouth\D*(-?\d+)', lower_input)
+                if mouth: new_params['mouth'] = int(mouth.group(1))
+                
+                # [수정] 색상 코드 파싱 개선 (이전의 'd' 오류 수정)
+                # # 뒤에 6자리 16진수 혹은 영단어
+                color = re.search(r'color\D*(#[0-9a-fA-F]{6}|[a-z]+)', lower_input)
+                if color: new_params['color'] = color.group(1)
 
-        # 세션 상태에 'face_params'라는 딕셔너리로 저장 -> main.py에서 렌더링에 사용
-        st.session_state.face_params = new_params
-        
-        # 변경된 상태를 반환 (생각의 흐름에 기록됨)
-        return f"Face updated: Eye={new_params.get('eye')}, Mouth={new_params.get('mouth')}"
+        if not new_params:
+            return "감정 설정 실패: 입력값을 이해할 수 없습니다."
+
+        # 3. 세션 상태 업데이트
+        current = st.session_state.get('face_params', EMOTION_PRESETS['idle'].copy())
+        current.update(new_params)
+        st.session_state.face_params = current
+        st.session_state.current_emotion = target_preset_name
+
+        # [핵심] 실시간 UI 업데이트 (즉시 반영)
+        # main.py에서 공유해준 'face_container'가 있다면 바로 그립니다.
+        if "face_container" in st.session_state:
+            container = st.session_state.face_container
+            # SVG 생성
+            raw_svg = render_face_svg(
+                eye_openness=current.get("eye", 100),
+                mouth_curve=current.get("mouth", 0),
+                eye_color=current.get("color", "#FFFFFF")
+            )
+            clean_svg = " ".join(raw_svg.split())
+            container.markdown(f'<div class="face-card">{clean_svg}</div>', unsafe_allow_html=True)
+
+        return f"Face updated to: {new_params}"
 
     except Exception as error:
         logger.error(f"Error in emotion_set: {error}")
