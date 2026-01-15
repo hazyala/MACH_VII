@@ -19,7 +19,7 @@ logger = get_logger('TOOLS')
 EMOTION_PRESETS = {
     'idle':          {'eye': 100, 'mouth': 0,   'color': '#FFFFFF'},
     'thinking':      {'eye': 60,  'mouth': 10,  'color': '#B0C4DE'},
-    'joy':           {'eye': 95,  'mouth': 80,  'color': '#FFD700'},
+    'joy':           {'eye': 95,  'mouth': 40,  'color': '#FFD700'},
     'sadness':       {'eye': 40,  'mouth': -60, 'color': '#4169E1'},
     'anger':         {'eye': 70,  'mouth': -50, 'color': '#FF0000'},
     'disgust':       {'eye': 60,  'mouth': -30, 'color': '#32CD32'},

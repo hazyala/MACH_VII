@@ -41,9 +41,11 @@ class AgentFileLogger(BaseCallbackHandler):
         agent_logger.info("> Finished chain.\n")
 
 class MachEngine:
-    def __init__(self):
+    def __init__(self, sim_mode=False):
         """비전 시스템과 메모리, 에이전트를 초기화합니다."""
-        self.vision = VisionSystem()
+        self.sim_mode = sim_mode  # 모드 상태 저장
+        
+        self.vision = VisionSystem(sim_mode=self.sim_mode)
         self.last_frame = None
         self.last_vision_result = "nothing"
         self.last_coordinates = []

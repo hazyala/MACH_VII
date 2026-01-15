@@ -15,10 +15,10 @@ def render_face_svg(eye_openness=100, mouth_curve=0, eye_color="#FFFFFF", glow_i
     radius = 20 if eye_openness > 20 else 5
 
     # 2. 입 좌표 계산
-    mouth_base_y = 280
+    mouth_base_y = 240
     mouth_sx, mouth_sy = 160, mouth_base_y
     mouth_ex, mouth_ey = 240, mouth_base_y
-    control_y = mouth_base_y + (mouth_curve * 1.8)
+    control_y = mouth_base_y + (mouth_curve * 1.5)
     mouth_opacity = 0 if abs(mouth_curve) < 5 else 1.0
 
     # 3. SVG 생성 (CSS Animation 적용)
@@ -34,7 +34,7 @@ def render_face_svg(eye_openness=100, mouth_curve=0, eye_color="#FFFFFF", glow_i
             </filter>
             
             <style>
-                /* [수술 핵심] 눈 깜빡임 애니메이션 정의 */
+                /* 눈 깜빡임 애니메이션 정의 */
                 @keyframes blink {{
                     0%, 90%, 100% {{ transform: scaleY(1); }} /* 0~2.7초: 원래 크기 유지 */
                     95% {{ transform: scaleY(0.1); }}         /* 2.85초: 눈 감음 (10% 크기) */

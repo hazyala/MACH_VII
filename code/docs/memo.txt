@@ -36,3 +36,14 @@ fuser /dev/video*
 
 # 5. 표정 샘플 실행
 # streamlit run code/scripts/face_sample.py
+
+# ======== Pybullet =========
+# 1.pybullet 경로에서 conda 가상환경 실행
+# conda activate pybullet_env
+
+# 2. pybullet 서버 실행
+# python main.py
+
+# 3. 새로운 터미널, 가상환경이 켜진 상태에서 pybullet 경로에서 Web UI 실행
+# streamlit run app.py
+
